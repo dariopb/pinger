@@ -1,0 +1,14 @@
+docker login -u dariob
+
+# 1709 core
+docker build -f Dockerfile-1709.txt -t dariob/pinger-1709 .
+docker tag dariob/pinger-1709 dariob/pinger-1709
+docker push dariob/pinger-1709:latest
+
+# 1709 nanoserver (with powershell)
+docker build -f Dockerfile-nano-1709.txt -t dariob/pinger-nano-1709 .
+docker tag dariob/pinger-nano-1709 dariob/pinger-nano-1709
+docker push dariob/pinger-nano-1709:latest
+
+
+

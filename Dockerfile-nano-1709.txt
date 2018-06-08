@@ -1,0 +1,10 @@
+FROM microsoft/powershell:6.0.2-nanoserver-1709
+
+#RUN mkdir /pinger 
+WORKDIR /
+
+COPY   ./pinger.exe /
+
+EXPOSE 8080
+
+ENTRYPOINT ["/pinger.exe"]
