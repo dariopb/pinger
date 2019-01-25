@@ -1,5 +1,10 @@
 docker login -u dariob
 
+# RS1 core
+docker build -f Dockerfile-14393.txt -t dariob/pinger-rs1 .
+docker tag dariob/pinger-rs1 dariob/pinger-rs1
+docker push dariob/pinger-rs1:1.1
+
 # 1709 core
 docker build -f Dockerfile-1709.txt -t dariob/pinger-1709 .
 docker tag dariob/pinger-1709 dariob/pinger-1709
@@ -10,5 +15,7 @@ docker build -f Dockerfile-nano-1709.txt -t dariob/pinger-nano-1709 .
 docker tag dariob/pinger-nano-1709 dariob/pinger-nano-1709
 docker push dariob/pinger-nano-1709:latest
 
-
-
+# 1803 nanoserver (with powershell)
+docker build -f Dockerfile-nano-1803.txt -t dariob/pinger-nano-1803 .
+docker tag dariob/pinger-nano-1803 dariob/pinger-nano-1803:1.1
+docker push dariob/pinger-nano-1803:latest
