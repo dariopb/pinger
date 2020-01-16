@@ -24,18 +24,35 @@ type ResponseObj struct {
 }
 
 func main() {
-	fmt.Println("starting pinger...")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("starting pinger on [%s]...\n", port)
+
+	addrs, err := net.InterfaceAddrs()
+	if err == nil {
+		for _, addr := range addrs {
+			fmt.Println(addr)
+		}
+	}
 
 	e := echo.New()
 	e.HideBanner = true
+
+	e.Static("/xterm", "web/index.html")
+	e.Static("/web", "web")
+	e.Static("/", "web")
 
 	// Routes
 	e.GET("/", hello)
 	e.GET("/proxy", proxy)
 	e.GET("/resolveName", resolveDns)
+	e.GET("/xterm-ws", xterm)
 
 	// Start server
-	e.Logger.Fatal(e.Start(":8080"))
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%s", port)))
 }
 
 func hello(c echo.Context) error {
@@ -116,4 +133,11 @@ func proxy(c echo.Context) error {
 	resp.Message = string(data)
 	resp.ErrorCode = 0
 	return c.JSON(http.StatusOK, resp)
+}
+
+func xterm(c echo.Context) error {
+	rw := c.Response().Writer
+	handleconsolews(rw, c.Request())
+
+	return nil
 }

@@ -1,0 +1,10 @@
+FROM mcr.microsoft.com/windows/nanoserver:1809
+
+#RUN mkdir /pinger 
+WORKDIR /
+
+COPY   ./pinger.exe /
+
+EXPOSE 8080
+
+ENTRYPOINT ["/pinger.exe"]

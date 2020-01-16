@@ -1,8 +1,10 @@
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v
+
 docker login -u dariob
 
 # RS1 core
 docker build -f Dockerfile-14393.txt -t dariob/pinger-rs1 .
-docker tag dariob/pinger-rs1 dariob/pinger-rs1
+docker tag dariob/pinger-rs1 dariob/pinger-rs1:1.3
 docker push dariob/pinger-rs1:1.1
 
 # 1709 core
@@ -17,5 +19,17 @@ docker push dariob/pinger-nano-1709:latest
 
 # 1803 nanoserver (with powershell)
 docker build -f Dockerfile-nano-1803.txt -t dariob/pinger-nano-1803 .
-docker tag dariob/pinger-nano-1803 dariob/pinger-nano-1803:1.1
+docker tag dariob/pinger-nano-1803 dariob/pinger-nano-1803:1.3
 docker push dariob/pinger-nano-1803:latest
+
+# 1809 nanoserver (with powershell)
+docker build -f Dockerfile-nano-1809.txt -t dariob/pinger-nano-1809 .
+docker tag dariob/pinger-nano-1809 dariob/pinger-nano-1809:1.3
+docker push dariob/pinger-nano-1809:latest
+
+# alpine
+docker build -f Dockerfile-alpine.txt -t dariob/pinger-alpine .
+docker tag dariob/pinger-alpine dariob/pinger-alpine:1.3
+docker tag dariob/pinger-alpine dariob/pinger-alpine:latest
+docker push dariob/pinger-alpine:latest
+

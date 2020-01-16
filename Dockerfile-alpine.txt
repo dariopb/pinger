@@ -1,0 +1,14 @@
+FROM alpine
+
+WORKDIR /
+COPY   ./pinger /
+COPY ./web/ /web/
+RUN ls -la /web/*
+
+RUN apk add tcpdump
+RUN apk add curl
+RUN apk add bash
+
+EXPOSE 8080
+
+ENTRYPOINT ["/pinger"]
