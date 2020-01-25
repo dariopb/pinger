@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"time"
 
+	tunnel "github.com/dariopb/goreverselb/pkg"
 	"github.com/labstack/echo"
 )
 
@@ -24,18 +26,43 @@ type ResponseObj struct {
 }
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	portstr := os.Getenv("PORT")
+	port, err := strconv.Atoi(portstr)
+	if err != nil {
+		port = 8080
 	}
 
-	fmt.Printf("starting pinger on [%s]...\n", port)
+	fmt.Printf("starting pinger on [%d]...\n", port)
 
 	addrs, err := net.InterfaceAddrs()
 	if err == nil {
 		for _, addr := range addrs {
 			fmt.Println(addr)
 		}
+	}
+
+	tunnelEndpointAPI := os.Getenv("LB_API_ENDPOINT")
+	servicename := os.Getenv("LB_SERVICENAME")
+
+	if tunnelEndpointAPI != "" && servicename != "" {
+		token := os.Getenv("LB_TOKEN")
+		td := tunnel.TunnelData{
+			ServiceName:          servicename,
+			BackendAcceptBacklog: 1,
+			FrontendData: tunnel.FrontendData{
+				Port: 0,
+			},
+			TargetPort:      port,
+			TargetAddresses: []string{"127.0.0.1"},
+			Token:           token,
+		}
+
+		_, err = tunnel.NewMuxTunnelClient(tunnelEndpointAPI, td)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		fmt.Println("Not starting lb association")
 	}
 
 	e := echo.New()
@@ -52,7 +79,7 @@ func main() {
 	e.GET("/xterm-ws", xterm)
 
 	// Start server
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%s", port)))
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }
 
 func hello(c echo.Context) error {
