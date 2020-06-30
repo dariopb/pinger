@@ -32,4 +32,6 @@ docker build -f Dockerfile-alpine.txt -t dariob/pinger-alpine .
 docker tag dariob/pinger-alpine dariob/pinger-alpine:1.3
 docker tag dariob/pinger-alpine dariob/pinger-alpine:latest
 docker push dariob/pinger-alpine:latest
+docker push dariob/pinger-alpine:1.3
+
 

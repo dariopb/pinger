@@ -2,19 +2,21 @@
 <html lang="en">
 <head>
 	<title>Xterm</title>
-	<link rel="stylesheet" href="/web/main.css" />
-	<link rel="stylesheet" href="/web/xterm.css" />
+	<link rel="stylesheet" href="web/main.css" />
+	<link rel="stylesheet" href="web/xterm.css" />
 </head>
 <body>
 	<div id="terminal-container"></div>
 
-	<script src="/web/xterm.js" ></script>
-	<script src="/web/fitAddon.js" ></script>
+	<script src="web/xterm.js" ></script>
+	<script src="web/fitAddon.js" ></script>
 
 	<script>
 
 	var term;
-	var websocket = new WebSocket("ws://" + window.location.hostname + ":" + window.location.port + "/xterm-ws");
+	var loc = window.location
+    var wsuri = "ws://" + loc.hostname + ":" + loc.port + loc.pathname + "/ws"
+	var websocket = new WebSocket(wsuri);
 	websocket.binaryType = "arraybuffer";
 
 	function ab2str(buf) {

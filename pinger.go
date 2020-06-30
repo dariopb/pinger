@@ -76,7 +76,7 @@ func main() {
 	e.GET("/", hello)
 	e.GET("/proxy", proxy)
 	e.GET("/resolveName", resolveDns)
-	e.GET("/xterm-ws", xterm)
+	e.GET("/xterm/ws", xterm)
 
 	// Start server
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
