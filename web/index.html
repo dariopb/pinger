@@ -29,6 +29,8 @@
 			useStyle: true,
 			cursorBlink: true,
 		});
+		term.setOption('fontFamily', 'Courier')
+		term.setOption('fontSize', '15')
 		term.write('Initializing remote \x1B[33;1munrestricted\x1B[0m console...\n\x1B[1E')
 		
         fitAddon = new FitAddon();
