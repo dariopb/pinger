@@ -162,8 +162,8 @@ func (wc *WinConsole) Close() error {
 	return syscall.TerminateProcess(syscall.Handle(wc.procInfo.Process), 0)
 }
 
-func (wc *WinConsole) Resize(rows uint16, cols uint16) error {
-	coord := &syscalls.COORD{X: int16(rows), Y: int16(cols)}
+func (wc *WinConsole) Resize(cols uint16, rows uint16) error {
+	coord := &syscalls.COORD{X: int16(cols), Y: int16(rows)}
 	err := syscalls.ResizePseudoConsole(wc.hpc, coord)
 	if err != nil {
 		return err

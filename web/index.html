@@ -2,20 +2,26 @@
 <html lang="en">
 <head>
 	<title>Xterm</title>
-	<link rel="stylesheet" href="web/main.css" />
-	<link rel="stylesheet" href="web/xterm.css" />
+	<link rel="stylesheet" href="/web/main.css" />
+	<link rel="stylesheet" href="/web/xterm.css" />
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@200&family=Ubuntu+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
 	<div id="terminal-container"></div>
 
-	<script src="web/xterm.js" ></script>
-	<script src="web/fitAddon.js" ></script>
+	<script src="/web/xterm.js" ></script>
+	<script src="/web/fitAddon.js" ></script>
+	<script src="/web/fontfaceobserver.standalone.js" ></script>
+	<script src="/web/xterm-webfont.js" ></script>
 
 	<script>
 
 	var term;
 	var loc = window.location
-    var wsuri = "ws://" + loc.hostname + ":" + loc.port + loc.pathname + "/ws"
+    //var wsuri = "ws://" + loc.hostname + ":" + loc.port + loc.pathname + "/ws"
+	var wsuri = "ws://" + loc.hostname + ":" + loc.port + "/xterm/ws"
 	var websocket = new WebSocket(wsuri);
 	websocket.binaryType = "arraybuffer";
 
@@ -28,13 +34,31 @@
 			screenKeys: false,
 			useStyle: true,
 			cursorBlink: true,
+			fontFamily: 'Cascadia Code',
+			fontWeight: '200',
+			fontSize: 14
 		});
-		term.setOption('fontFamily', 'Courier')
-		term.setOption('fontSize', '15')
+
+		const queryString = window.location.search;
+		const urlParams = new URLSearchParams(queryString);
+		if (urlParams.has('fontFamily')) {
+			ff = urlParams.get('fontFamily');
+			term.setOption('fontFamily', ff);
+			document.getElementById("terminal-container").style.fontFamily = ff;
+		}
+		if (urlParams.has('fontSize')) {
+			term.setOption('fontSize', urlParams.get('fontSize'));
+		}
+		if (urlParams.has('fontWeight')) {
+			term.setOption('fontWeight', urlParams.get('fontWeight'));
+		}
+
+		//term.setOption('fontSize', '15')
 		term.write('Initializing remote \x1B[33;1munrestricted\x1B[0m console...\n\x1B[1E')
 		
         fitAddon = new FitAddon();
 		term.loadAddon(fitAddon);
+		term.loadAddon(new XtermWebfont());
 
 		term.onData(data => {
 			fitAddon.fit();
@@ -53,7 +77,8 @@
 			document.title = title;
 		});
 
-		term.open(document.getElementById('terminal-container'));
+		term.loadWebfontAndOpen(document.getElementById('terminal-container'));
+		//term.open(document.getElementById('terminal-container'));
 		fitAddon.fit();
 
 		websocket.onmessage = function(evt) {

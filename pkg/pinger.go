@@ -57,7 +57,7 @@ func (c *XtermObj) Evaluate() {
 	}
 }
 
-func NewPinger(port int, enableUpload bool, token string, lbEndpointAPI string, lbServicename string, lbFrontendPort int, lbToken string) error {
+func NewPinger(port int, enableUpload bool, enableXterm bool, token string, lbEndpointAPI string, lbServicename string, lbFrontendPort int, lbToken string) error {
 	fmt.Printf("starting pinger on [%d]...\n", port)
 
 	addrs, err := net.InterfaceAddrs()
@@ -127,7 +127,8 @@ func NewPinger(port int, enableUpload bool, token string, lbEndpointAPI string, 
 				return ok, nil
 			},
 			Skipper: func(c echo.Context) bool {
-				return c.Path() == "/" || c.Path() == "/xterm/ws"
+				p := c.Path()
+				return p == "/" || p == "/web*" || p == "/xterm/ws" || p == "/favicon.ico" || p == "/uploadMultipart" || p == "/files/*"
 			},
 		}))
 	} else {
@@ -135,7 +136,6 @@ func NewPinger(port int, enableUpload bool, token string, lbEndpointAPI string, 
 	}
 
 	e.Static("/web", "web")
-	e.File("/xterm", "web/index.html", pingerCtx.m)
 
 	// Routes
 	e.GET("/", hello)
@@ -143,7 +143,11 @@ func NewPinger(port int, enableUpload bool, token string, lbEndpointAPI string, 
 	e.GET("/id", pingerCtx.id)
 	e.GET("/proxy", proxy)
 	e.GET("/resolveName", resolveDns)
-	e.GET("/xterm/ws", pingerCtx.xtermws)
+
+	if enableXterm {
+		e.File("/xterm", "web/index.html", pingerCtx.m)
+		e.GET("/xterm/ws", pingerCtx.xtermws)
+	}
 
 	// Start server
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
@@ -190,17 +194,47 @@ func (p *PingerCtx) m(next echo.HandlerFunc) echo.HandlerFunc {
 
 func hello(c echo.Context) error {
 	hostname, _ := os.Hostname()
-	banner := fmt.Sprintf("Pinger: I'm alive on [%s] (%s on %s/%s). Supports: dns, proxy, vars, LB (LB_API_ENDPOINT/LB_TOKEN/LB_PORT/LB_SERVICE_NAME), xterm (linux/windows), upload via POST (ENABLE_UPLOAD), dapr invoke. Available routes: ",
+	banner := fmt.Sprintf("Pinger: I'm alive on [%s] (%s on %s/%s). Supports: dns, proxy, vars, LB (LB_API_ENDPOINT/LB_TOKEN/LB_PORT/LB_SERVICE_NAME), xterm (linux/windows, ENABLE_XTERM), upload via POST (ENABLE_UPLOAD), dapr invoke.",
 		hostname, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 
+	banner += "<h3>Query strings</h3><snap>"
+	banner += "<li>token: access token (if server neededs it))</li>"
+	banner += "<li>cmd: command to run for xterm</li>"
+	banner += "<li>fontFamily [Cascadia Code/Cascadia Mono/Roboto Mono/Ubuntu Mono]/fontSize/fontWeight for xterm console</li>"
+	banner += "<li>Target: the target for DNS resolution (dns name) or proxy (http url to proxy to)</li>"
+	banner += "<li></li>"
+	banner += "</snap>"
+	banner += "<h3>Available routes</h3><snap>"
 	routes := c.Echo().Routes()
 	for _, route := range routes {
-		banner = banner + route.Path + " "
+		banner = banner + route.Path + ", "
 	}
+	banner += "</snap>"
 
-	banner = fmt.Sprintf("%s  %s", banner, strings.Join(os.Environ(), ","))
+	banner += "<h3>IP configuration</h3><snap style='display: block;background-color:lightblue;'>"
 
-	return c.JSON(http.StatusOK, banner)
+	links, err := net.Interfaces()
+	if err == nil {
+
+		for _, li := range links {
+			banner += "<li>" + li.Name + ": " + li.HardwareAddr.String() + "<br>"
+			addresses, err := li.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, addr := range addresses {
+				banner += "&nbsp;&nbsp;&nbsp;&nbsp;" + addr.String() + "<br>"
+			}
+			banner += "</li>"
+		}
+	}
+	banner += "</snap>"
+
+	banner += "<h3>Variables</h3><span style='display: block;background-color:yellow;'><li>"
+	banner = fmt.Sprintf("%s  %s", banner, strings.Join(os.Environ(), "</li><li>"))
+	banner += "</li></snap>"
+
+	return c.HTML(http.StatusOK, banner)
 }
 
 func resolveDns(c echo.Context) error {
@@ -289,19 +323,25 @@ func (p *PingerCtx) id(c echo.Context) error {
 
 	msg := ""
 	sum := 0
-	addrs, err := net.InterfaceAddrs()
+
+	msg += "<snap style='display: block;font-size: 20;font-weight: bold'>"
+	links, err := net.Interfaces()
 	if err == nil {
-		for _, addr := range addrs {
-			//msg = msg + " " + addr.String()
-			msg = msg + "<h3 style='margin:0'>" + addr.String() + "</h3>"
-			for _, i := range addr.String() {
-				sum = sum + int(i)
+		for _, li := range links {
+			msg += "<li>" + li.Name + ": " + li.HardwareAddr.String() + "<br>"
+			addresses, err := li.Addrs()
+			if err != nil {
+				continue
 			}
+			for _, addr := range addresses {
+				msg += "&nbsp;&nbsp;&nbsp;&nbsp;" + addr.String() + "<br>"
+			}
+			msg += "</li>"
 		}
 	}
+	msg += "</snap>"
 
 	color := colorArray[sum%len(colorArray)]
-
 	html := fmt.Sprintf("<html><body style='background-color:%s;'>%s</body></html>", color, msg)
 
 	return c.HTML(http.StatusOK, html)

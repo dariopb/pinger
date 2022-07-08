@@ -1,7 +1,9 @@
 package main
 
 import (
+	"embed"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"runtime"
@@ -18,11 +20,15 @@ func printVersion() {
 	log.Info(fmt.Sprintf("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH))
 }
 
+//go:embed web/*
+var webFS embed.FS
+
 // server
 var port int
 var loglevelstr string
 
 var enableUpload bool
+var enableXterm bool
 var token string
 var lbapiendpoint string
 var insecuretls bool
@@ -109,6 +115,14 @@ func main() {
 				Destination: &enableUpload,
 				Required:    false,
 			},
+			&cli.BoolFlag{
+				Name:        "enableXterm",
+				Value:       false,
+				Usage:       "allow enabling remote console",
+				EnvVars:     []string{"ENABLE_XTERM"},
+				Destination: &enableXterm,
+				Required:    false,
+			},
 			&cli.StringFlag{
 				Name:        "token",
 				Aliases:     []string{"k"},
@@ -130,6 +144,62 @@ func main() {
 	}
 }
 
+func copyDir(src string, dest string) error {
+	forig, err := os.Open(src)
+	if err == nil {
+		log.Infof("Not copying filesystem to %s (file already exists, remove it to replace it)", dest)
+		return nil
+	}
+	forig.Close()
+
+	f, err := webFS.Open(src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	file, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !file.IsDir() {
+		return fmt.Errorf("Source " + file.Name() + " is not a directory!")
+	}
+
+	err = os.Mkdir(dest, 0755)
+	if err != nil {
+		return err
+	}
+
+	files, err := webFS.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			err = copyDir(src+"/"+f.Name(), dest+"/"+f.Name())
+			if err != nil {
+				return err
+			}
+		}
+
+		if !f.IsDir() {
+			content, err := webFS.ReadFile(src + "/" + f.Name())
+			if err != nil {
+				return err
+			}
+
+			err = ioutil.WriteFile(dest+"/"+f.Name(), content, 0755)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func server(ctx *cli.Context) error {
 	printVersion()
 
@@ -143,7 +213,12 @@ func server(ctx *cli.Context) error {
 	log.SetLevel(loglevel)
 	log.SetOutput(os.Stdout)
 
-	err := pinger.NewPinger(port, enableUpload, token, lbapiendpoint, servicename, frontendport, lbToken)
+	err := copyDir("web", "web")
+	if err != nil {
+		log.Fatalf("failed to reconstruct filesystem: ", err)
+	}
+
+	err = pinger.NewPinger(port, enableUpload, enableXterm, token, lbapiendpoint, servicename, frontendport, lbToken)
 	if err != nil {
 		log.Fatalf("failed to start pinger: ", err)
 	}

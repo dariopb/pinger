@@ -27,7 +27,7 @@ func handleconsolews(cmd string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	d.resize = func(cols uint16, rows uint16) {
-		err := wc.Resize(rows, cols)
+		err := wc.Resize(cols, rows)
 		if err != nil {
 		}
 	}
