@@ -11,7 +11,9 @@
             "mode": "debug",
             "program": "${workspaceFolder}/pinger.go",
             "env": {},
-            "args": [ "--enableXterm", "--enableUpload", "--token=5555"],
+            "args": [ "--enableXterm", "--enableUpload", "--token=5555"
+                //, "--grpcaddress=unix:///tmp/pinger.sock"
+            ],
             "showLog": true
         }
     ]

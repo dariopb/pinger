@@ -25,6 +25,7 @@ var webFS embed.FS
 
 // server
 var port int
+var grpcaddress string
 var loglevelstr string
 
 var enableUpload bool
@@ -61,6 +62,15 @@ func main() {
 				Usage:       "port for the HTTP rest endpoint",
 				EnvVars:     []string{"PORT"},
 				Destination: &port,
+				Required:    false,
+			},
+			&cli.StringFlag{
+				Name:        "grpcaddress",
+				Aliases:     []string{"g"},
+				Value:       ":8081",
+				Usage:       "address where to listen for the GRPC endpoint (like: ':8081', 'unix:///tmp/pinger.sock')",
+				EnvVars:     []string{"GRPC_LISTEN_ADDRESS"},
+				Destination: &grpcaddress,
 				Required:    false,
 			},
 			&cli.StringFlag{
@@ -221,6 +231,11 @@ func server(ctx *cli.Context) error {
 	err = pinger.NewPinger(port, enableUpload, enableXterm, token, lbapiendpoint, servicename, frontendport, lbToken)
 	if err != nil {
 		log.Fatalf("failed to start pinger: ", err)
+	}
+
+	_, err = pinger.NewGRPCServer(grpcaddress)
+	if err != nil {
+		log.Fatalf("failed to start grpc pinger: ", err)
 	}
 
 	c := make(chan os.Signal, 2)

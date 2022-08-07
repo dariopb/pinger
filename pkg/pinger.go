@@ -150,7 +150,12 @@ func NewPinger(port int, enableUpload bool, enableXterm bool, token string, lbEn
 	}
 
 	// Start server
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
+	go func() {
+		err := e.Start(fmt.Sprintf(":%d", port))
+		if err == nil {
+			log.Fatalf("Failed starting http server: %v", err)
+		}
+	}()
 
 	return nil
 }

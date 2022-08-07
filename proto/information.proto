@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package api.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service Information_Service {
+    rpc List ( List_request ) returns ( .api.v1.Information );
+    rpc Watch ( Watch_request ) returns ( stream .api.v1.Watch_response );
+}
+
+message List_request {
+    string name = 1;
+}
+
+message Watch_request {
+    string name = 1;
+    int32 PeriodSecs = 2;
+    int32 StopAfterCount = 3;
+}
+message Watch_response {
+    string name = 1;
+    int32 id = 2;
+}
+
+message Information {
+    int32 id = 1;
+    google.protobuf.Timestamp time = 2;
+    string description = 3;
+
+    repeated KV envVariables = 4;
+}
+
+message KV {
+    string key = 1;
+    string value = 2;
+}

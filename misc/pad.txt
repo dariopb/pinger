@@ -1,0 +1,18 @@
+set PATH=%PATH%;c:\goenv\gopath\bin;c:\tools
+
+c:\tools\protoc\bin\protoc.exe --proto_path=proto --go-grpc_out=proto --go-grpc_opt=paths=import --go-grpc_opt=module=github.com/dariopb/pinger/proto --go-grpc_opt=Minformation.proto=github.com/dariopb/pinger/proto/information.v1  --go_out=proto --go_opt=paths=import --go_opt=module=github.com/dariopb/pinger/proto --go_opt=Minformation.proto=github.com/dariopb/pinger/proto/information.v1 information.proto
+
+
+grpcurl --plaintext localhost:8081
+grpcurl --plaintext localhost:8081 describe
+grpcurl --plaintext localhost:8081 describe api.v1.Information_Service.Watch
+
+grpcurl --plaintext --unix /tmp/pinger.sock api.v1.Information_Service.List
+
+grpcurl --plaintext localhost:8081 api.v1.Information_Service.List
+grpcurl --plaintext localhost:8081 api.v1.Information_Service.Watch
+
+grpcurl -d "{\"StopAfterCount\":2000000000}" --plaintext localhost:8081 api.v1.Information_Service.Watch
+
+
+
