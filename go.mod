@@ -6,16 +6,16 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/dariopb/goreverselb v0.1.1
 	github.com/gorilla/websocket v1.5.0
-	github.com/labstack/echo/v4 v4.7.2
+	github.com/labstack/echo/v4 v4.9.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/urfave/cli/v2 v2.8.1
 	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c
+	google.golang.org/protobuf v1.27.1
 )
 
 require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
 )
 
 require (
