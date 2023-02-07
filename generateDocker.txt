@@ -34,9 +34,9 @@ docker push dariob/pinger-nano-1809:1.4
 
 # alpine
 docker build -f Dockerfile-alpine.txt -t dariob/pinger-alpine .
-docker tag dariob/pinger-alpine dariob/pinger-alpine:1.4
+docker tag dariob/pinger-alpine dariob/pinger-alpine:1.5
 docker tag dariob/pinger-alpine dariob/pinger-alpine:latest
 docker push dariob/pinger-alpine:latest
-docker push dariob/pinger-alpine:1.4
+docker push dariob/pinger-alpine:1.5
 
 

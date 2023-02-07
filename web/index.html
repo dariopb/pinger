@@ -29,6 +29,10 @@
 		return String.fromCharCode.apply(null, new Uint8Array(buf));
 	}
 
+	function Decodeuint8arr(buf){
+		return new TextDecoder("utf-8").decode(buf);
+	}
+
 	websocket.onopen = function(evt) {
 		term = new Terminal ({
 			screenKeys: false,
@@ -83,7 +87,7 @@
 
 		websocket.onmessage = function(evt) {
 			if (evt.data instanceof ArrayBuffer) {
-				term.write(ab2str(evt.data));
+				term.writeUtf8(Decodeuint8arr(evt.data));
 			} else {
 				//alert(evt.data)
 				term.write('\x1B[31;1m' + evt.data +'\x1B[0m\n\x1B[1E')
