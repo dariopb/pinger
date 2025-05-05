@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xterm Terminal</title>
+    <title>Xterm.js Terminal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.css">
     <style>
         body, html {
@@ -16,8 +16,7 @@
         
         #app-container {
             display: flex;
-            height: calc(var(--vh, 1vh) * 100);
-            width: calc(var(--vw, 1vw) * 100);
+            height: 100vh;
             position: relative;
         }
         
@@ -29,10 +28,10 @@
         
         #config-button {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
+            bottom: 10px;
+            right: 10px;
             z-index: 100;
-            background-color: #ffd900a0; /* Yellow */
+            background-color: #FFD700; /* Yellow */
             color: black;
             border: none;
             border-radius: 50%; /* Round */
@@ -208,9 +207,9 @@
         const applyButton = document.getElementById('apply-settings');
         const terminalContainer = document.getElementById('terminal-container');
         
-        var loc = window.location;
-        var wsProtocol = loc.protocol === "https:" ? "wss://" : "ws://";
-        var wsuri = wsProtocol + loc.hostname + ":" + loc.port + "/xterm/ws" + loc.search;
+        var loc = window.location
+        //var wsuri = "ws://" + loc.hostname + ":" + loc.port + loc.pathname + "/ws"
+        var wsuri = "ws://" + loc.hostname + ":" + loc.port + "/xterm/ws" + loc.search;
         var websocket = new WebSocket(wsuri);
         websocket.binaryType = "arraybuffer";
 
@@ -219,22 +218,8 @@
         }
 
         function Decodeuint8arr(buf){
-            var text = new TextDecoder("utf-8").decode(buf);
-            return text;
+            return new TextDecoder("utf-8").decode(buf);
         }
-
-        function setViewportHeight() {
-            const vh = window.innerHeight * 0.01;
-            document.documentElement.style.setProperty('--vh', `${vh}px`);
-        }
-
-        function setViewportWidth() {
-            const vw = window.innerWidth * 0.01;
-            document.documentElement.style.setProperty('--vw', `${vw}px`);
-        }
-
-        // Set the initial viewport width
-        setViewportWidth();
 
         // Initialize terminal
         function initTerminal() {
@@ -252,56 +237,10 @@
                     background: '#000000',
                     foreground: '#ffffff',
                     cursor: '#ffffff',
-                    selection: '#4d4d4d88'
+                    selection: '#4d4d4d'
                 },
                 rendererType: 'canvas',
                 allowTransparency: true
-            });
-
-            // Enable Ctrl+C and Ctrl+V for cut and paste
-/*            term.attachCustomKeyEventHandler((e) => {
-                if (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'v')) {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    return false; // Allow browser's default behavior
-                }
-                return true; // Allow other key events
-            });
-            */
-            term.attachCustomKeyEventHandler((e) => {
-                if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c') {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    // Copy selected text to clipboard
-                    const selectedText = term.getSelection();
-                    if (selectedText) {
-                        navigator.clipboard.writeText(selectedText).then(() => {
-                            console.log('Copied to clipboard:', selectedText);
-                        }).catch(err => {
-                            console.error('Failed to copy text:', err);
-                        });
-                    }
-
-                    return true; // Prevent browser's default behavior
-                }
-
-                if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'v') {
-            
-                    // Paste clipboard content into the terminal
-                    navigator.clipboard.readText().then((clipboardText) => {
-                        term.write(clipboardText);
-                    }).catch(err => {
-                        console.error('Failed to read clipboard:', err);
-                    });
-
-                    e.preventDefault();
-                    e.stopPropagation();
-        
-                    return true; // Prevent browser's default behavior
-                }
-
-                return true; // Allow other key events
             });
             
             // Open terminal in the container
@@ -313,48 +252,20 @@
             term.write('Initializing remote \x1B[33;1munrestricted\x1B[0m console...\n\x1B[1E')
             term.writeln('');
             
-            term.onData(data => {
-                term.fit();
-                websocket.send(new TextEncoder().encode("\x00" + data));
+            // Simple echo functionality
+            term.on('key', (key, ev) => {
+                // When user presses Enter
+                if (ev.keyCode === 13) {
+                    term.writeln('');
+                } else {
+                    term.write(key);
+                }
             });
-
-            term.onTitleChange(title => {
-                document.title = title;
-            });
-
-            term.onResize(evt => {
-                websocket.send(new TextEncoder().encode("\x01" + JSON.stringify({cols: evt.cols, rows: evt.rows})))
-            });
-
-            websocket.send(new TextEncoder().encode("\x01" + JSON.stringify({cols: term.cols, rows: term.rows})))
             
             // Handle terminal resizing
             window.addEventListener('resize', () => {
                 term.fit();
-                setViewportHeight();
-                setViewportWidth();
             });
-
-            websocket.onmessage = function(evt) {
-                if (evt.data instanceof ArrayBuffer) {
-                    //term.writeUtf8(Decodeuint8arr(evt.data));
-                    term.write(Decodeuint8arr(evt.data));
-                } else {
-                    //alert(evt.data)
-                    term.write('\x1B[31;1m' + evt.data +'\x1B[0m\n\x1B[1E')
-                }
-            }
-
-            websocket.onclose = function(evt) {
-                term.write("Session terminated");
-                //term.destroy();
-            }
-
-            websocket.onerror = function(evt) {
-                if (typeof console.log == "function") {
-                    console.log(evt)
-                }
-            }
         }
         
         // Toggle config panel
@@ -399,11 +310,15 @@
                 cursor: cursorColor,
                 selection: selectionColor
             });
-
+            
+            // Notify user
+            term.writeln('');
+            term.writeln('Settings applied!');
+            term.writeln('');
+            
             // Fit terminal after changes
             term.fit();
 
-            configOpen = false;
             configPanel.classList.remove('open');
         }
         
@@ -538,33 +453,28 @@
                 e.preventDefault();
             }
         }
-
-        // Set the initial viewport height
-        setViewportHeight();
-
+        
         // Initialize everything when page loads
         window.addEventListener('load', () => {
-            websocket.onopen = function(evt) {
-                // Initialize terminal
-                initTerminal();
-                
-                // Set up event listeners
-                // Note: We're removing the click handler and handling clicks in dragEnd
-                //configButton.addEventListener('click', toggleConfigPanel);
-                applyButton.addEventListener('click', applySettings);
-                
-                // Set up event listeners for draggable button
-                // We're adding these listeners to document to capture all events
-                // but we filter based on target in the handlers
-                document.addEventListener('mousedown', dragStart);
-                document.addEventListener('mousemove', drag);
-                document.addEventListener('mouseup', dragEnd);
-                            
-                // Touch support for mobile devices
-                document.addEventListener('touchstart', touchDragStart);
-                document.addEventListener('touchmove', touchDrag);
-                document.addEventListener('touchend', dragEnd);
-            }
+            // Initialize terminal
+            initTerminal();
+            
+            // Set up event listeners
+            // Note: We're removing the click handler and handling clicks in dragEnd
+            //configButton.addEventListener('click', toggleConfigPanel);
+            applyButton.addEventListener('click', applySettings);
+            
+            // Set up event listeners for draggable button
+            // We're adding these listeners to document to capture all events
+            // but we filter based on target in the handlers
+            document.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+                        
+            // Touch support for mobile devices
+            document.addEventListener('touchstart', touchDragStart);
+            document.addEventListener('touchmove', touchDrag);
+            document.addEventListener('touchend', dragEnd);
         });
     </script>
 </body>

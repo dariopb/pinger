@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -15,7 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func handleconsolews(cmdToRun string, w http.ResponseWriter, r *http.Request) {
+func handleconsolews(xterObj *XtermObj, w http.ResponseWriter, r *http.Request) {
 	l := log.WithField("remoteaddr", r.RemoteAddr)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -23,48 +24,90 @@ func handleconsolews(cmdToRun string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	l.WithField("cmd", cmdToRun).Info("handle console cmd")
 	d := webSocketConsoleConn{Conn: conn}
+	var stdIn io.Reader
+	var stdOut io.Writer
 
-	cmd := exec.Command(cmdToRun) // -l
-	cmd.Env = append(os.Environ(), "TERM=xterm")
-	cmd.Env = append(os.Environ(), "LANG=C")
+	if xterObj.SshTarget != "" {
+		l.WithField("sshTarget", xterObj.SshTarget).Infof("SSH target detected: %s", xterObj.SshTarget)
 
-	tty, err := pty.Start(cmd)
-	if err != nil {
-		l.WithError(err).Error("Unable to start pty/cmd")
-		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-		return
-	}
-
-	defer func() {
-		cmd.Process.Kill()
-		cmd.Process.Wait()
-		tty.Close()
-		conn.Close()
-	}()
-
-	d.resize = func(cols uint16, rows uint16) {
-		resizeMessage := windowSize{Rows: rows, Cols: cols}
-		_, _, errno := syscall.Syscall(
-			syscall.SYS_IOCTL,
-			tty.Fd(),
-			syscall.TIOCSWINSZ,
-			uintptr(unsafe.Pointer(&resizeMessage)),
-		)
-		if errno != 0 {
-			l.WithError(syscall.Errno(errno)).Error("Unable to resize terminal")
+		sshClient, err := NewSshClient(xterObj.SshTarget)
+		if err != nil {
+			l.WithError(err).Error("Unable to create SSH client")
+			conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+			return
 		}
-	}
-	d.close = func() {
-		cmd.Process.Kill()
-		tty.Close()
-	}
 
-	go io.Copy(&d, tty)
-	go io.Copy(tty, &d)
+		stdIn = sshClient.sessOut
+		stdOut = sshClient.sessIn
+		d.resize = sshClient.Resize
 
-	cmd.Process.Wait()
+		d.close = func() {
+			sshClient.Close()
+		}
+
+		waitgroup := &sync.WaitGroup{}
+		waitgroup.Add(1)
+
+		go func() {
+			io.Copy(&d, stdIn)
+		}()
+		go func() {
+			io.Copy(stdOut, &d)
+		}()
+
+		go func() {
+			sshClient.sess.Wait()
+			waitgroup.Done()
+		}()
+
+		waitgroup.Wait()
+
+		sshClient.Close()
+	} else {
+		l.WithField("cmd", xterObj.Cmd).Info("handle console cmd")
+
+		cmd := exec.Command(xterObj.Cmd) // -l
+		cmd.Env = append(os.Environ(), "TERM=xterm", "LANG=C")
+
+		tty, err := pty.Start(cmd)
+		if err != nil {
+			l.WithError(err).Error("Unable to start pty/cmd")
+			conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+			return
+		}
+		stdIn = tty
+		stdOut = tty
+
+		defer func() {
+			cmd.Process.Kill()
+			cmd.Process.Wait()
+			tty.Close()
+			conn.Close()
+		}()
+
+		d.resize = func(cols uint16, rows uint16) {
+			resizeMessage := windowSize{Rows: rows, Cols: cols}
+			_, _, errno := syscall.Syscall(
+				syscall.SYS_IOCTL,
+				tty.Fd(),
+				syscall.TIOCSWINSZ,
+				uintptr(unsafe.Pointer(&resizeMessage)),
+			)
+			if errno != 0 {
+				l.WithError(syscall.Errno(errno)).Error("Unable to resize terminal")
+			}
+		}
+		d.close = func() {
+			cmd.Process.Kill()
+			tty.Close()
+		}
+
+		go io.Copy(&d, stdIn)
+		go io.Copy(stdOut, &d)
+
+		cmd.Process.Wait()
+	}
 
 	log.Infof("Linux shell handler terminated.")
 	conn.WriteMessage(websocket.TextMessage, []byte("Linux shell handler terminated."))
@@ -72,7 +115,7 @@ func handleconsolews(cmdToRun string, w http.ResponseWriter, r *http.Request) {
 	conn.Close()
 }
 
-func wwwhandleconsolews(cmdToRun string, w http.ResponseWriter, r *http.Request) {
+func wwwhandleconsolews(xterObj *XtermObj, w http.ResponseWriter, r *http.Request) {
 	l := log.WithField("remoteaddr", r.RemoteAddr)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -80,7 +123,7 @@ func wwwhandleconsolews(cmdToRun string, w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cmd := exec.Command(cmdToRun) // -l
+	cmd := exec.Command(xterObj.Cmd) // -l
 	cmd.Env = append(os.Environ(), "TERM=xterm")
 	cmd.Env = append(os.Environ(), "LANG=C")
 

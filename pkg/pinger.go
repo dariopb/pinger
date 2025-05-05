@@ -31,8 +31,8 @@ type CommandObj struct {
 type XtermObj struct {
 	Cmd         string `json:"cmd,omitempty" query:"cmd"`
 	SessionName string `json:"sessionName,omitempty" query:"sessionName"`
-
-	allowed bool
+	SshTarget   string `json:"ssh,omitempty" query:"sshTarget"`
+	allowed     bool
 }
 
 type ResponseObj struct {
@@ -314,7 +314,7 @@ func (p *PingerCtx) xtermws(c echo.Context) error {
 		return fmt.Errorf("Not authorized")
 	}
 	rw := c.Response().Writer
-	handleconsolews(p.cmd.Cmd, rw, c.Request())
+	handleconsolews(p.cmd, rw, c.Request())
 
 	return nil
 }

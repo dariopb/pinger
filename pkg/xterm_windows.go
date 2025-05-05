@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func handleconsolews(cmd string, w http.ResponseWriter, r *http.Request) {
+func handleconsolews(xterObj *XtermObj, w http.ResponseWriter, r *http.Request) {
 	l := log.WithField("remoteaddr", r.RemoteAddr)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -16,10 +16,10 @@ func handleconsolews(cmd string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	l.WithField("cmd", cmd).Info("handle console cmd")
+	l.WithField("cmd", xterObj.Cmd).Info("handle console cmd")
 	d := webSocketConsoleConn{Conn: conn}
 
-	wc, err := console.NewWinConsole(cmd, &d)
+	wc, err := console.NewWinConsole(xterObj.Cmd, &d)
 	if err != nil {
 		log.Errorf("NewWinConsole: %v", err)
 		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
