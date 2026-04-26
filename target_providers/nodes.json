@@ -1,0 +1,11 @@
+{
+    "nodes": [
+       {
+        "name": "localhost",
+        "target": "localhost:22",
+        "username": "dario",
+        "password": "dario",
+        "key": ""
+       }
+    ]
+}

@@ -20,12 +20,19 @@ var terminalModes = ssh.TerminalModes{
 	ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 }
 
+type SshCluster struct {
+	Name  string   `json:"name"`
+	Nodes []string `json:"nodes"`
+}
+
 type SshEndpointData struct {
 	Cluster  string `json:"cluster"`
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
+	Target   string `json:"target"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Key      string `json:"key"`
 }
 
 type sshClient struct {
@@ -39,12 +46,34 @@ type sshClient struct {
 	sess    *ssh.Session
 	sessIn  io.WriteCloser
 	sessOut io.Reader
+}
 
-	mcpClient *client.Client
+var mcpClient *client.Client
+
+func GetAllSshNodes() ([]SshCluster, error) {
+	log.Info("sshClient: GetAllNodes")
+	var err error
+
+	if mcpClient == nil {
+		return nil, fmt.Errorf("Plugins were not configured.")
+	}
+
+	clusters, err := callGetAllNodesPlugin()
+	if err != nil {
+		log.Error("sshClient: callGetAllNodesPlugin:", err)
+		return nil, err
+	}
+
+	return clusters, nil
 }
 
 func NewSshClient(sshTarget string) (*sshClient, error) {
 	log.Info("sshClient: NewSshClient:", sshTarget)
+
+	var err error
+	if mcpClient == nil {
+		return nil, fmt.Errorf("Plugins were not configured.")
+	}
 
 	sshEndpoint, err := callSshEndpointPlugin(sshTarget)
 	if err != nil {
@@ -53,10 +82,11 @@ func NewSshClient(sshTarget string) (*sshClient, error) {
 	}
 
 	c := &sshClient{
-		addr:    fmt.Sprintf("%s:%d", sshEndpoint.Host, sshEndpoint.Port),
+		addr:    sshEndpoint.Target, //fmt.Sprintf("%s:%d", sshEndpoint.Host, sshEndpoint.Port),
 		user:    sshEndpoint.Username,
 		secret:  sshEndpoint.Password,
 		keyfile: "",
+		keyRaw:  sshEndpoint.Key,
 	}
 
 	// Log the SSH connection details
@@ -66,8 +96,6 @@ func NewSshClient(sshTarget string) (*sshClient, error) {
 		"port":      sshEndpoint.Port,
 		"username":  sshEndpoint.Username,
 	}).Info("SSH connection details")
-
-	//c.mcpClient = mcpClient
 
 	err = c.connect()
 	return c, err
@@ -174,31 +202,23 @@ func (c *sshClient) Resize(cols uint16, rows uint16) {
 	}
 }
 
-// [Ab]using the LLM MCP client to call the SSH endpoint "tool" plugin since it implements already
-// a "standard" interface to call plugins and we don't want to implement a new one.
-func callSshEndpointPlugin(sshTarget string) (*SshEndpointData, error) {
-	command := "uv"
+func initializePluginClients(serverConfig MCPServerConfig) (*client.Client, error) {
+	log.Info("sshClient: initializePluginClients")
 
-	env := []string{}
-	args := []string{}
-
-	// populate the args with this: " run --project /home/dario/projects/pinger/target_providers /home/dario/projects/pinger/target_providers/file_provider.py"
-	args = append(args, "run")
-	args = append(args, "--project")
-	args = append(args, "/home/dario/projects/pinger/target_providers")
-	args = append(args, "/home/dario/projects/pinger/target_providers/file_provider.py")
+	var err error
 
 	// Initialiaze the MCP client
-	mcpClient, err := client.NewStdioMCPClient(command, env, args...)
+	mcpClient, err := client.NewStdioMCPClient(serverConfig.Command, serverConfig.Env, serverConfig.Args...)
 	if err != nil {
 		log.Error("sshClient: client.NewInProcessClient:", err)
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	cancel = cancel
 
 	defer func() {
-		cancel()
+		//cancel()
 		//if err := mcpClient.Close(); err != nil {
 		//	log.Error("sshClient: mcpClient.Close:", err)
 		//}
@@ -220,6 +240,64 @@ func callSshEndpointPlugin(sshTarget string) (*SshEndpointData, error) {
 	case <-time.After(10 * time.Second):
 		return nil, fmt.Errorf("initialization timed out")
 	}
+
+	return mcpClient, nil
+}
+
+// [Ab]using the LLM MCP client to call the SSH endpoint "tool" plugin since it implements already
+// a "standard" interface to call plugins and we don't want to implement a new one.
+func callGetAllNodesPlugin() ([]SshCluster, error) {
+	ctx := context.Background()
+
+	var params = make(map[string]any)
+
+	request := mcp.CallToolRequest{}
+	request.Params.Name = "get_all_nodes"
+	request.Params.Arguments = params
+
+	res, err := mcpClient.CallTool(ctx, request)
+	if err != nil {
+		log.Error("sshClient: mcpClient.CallTool:", err)
+		return nil, err
+	}
+
+	if len(res.Content) == 0 {
+		return nil, fmt.Errorf("function get_all_nodes failed")
+	}
+
+	data, _ := json.Marshal(res)
+
+	textContent := struct {
+		Content []mcp.TextContent `json:"content"`
+	}{}
+
+	err = json.Unmarshal(data, &textContent)
+	if textContent.Content[0].Type != "text" || res.IsError {
+		log.Error("sshClient: mcpClient.CallTool:", err)
+		return nil, fmt.Errorf("function get_all_nodes failed: %s", textContent.Content[0].Text)
+	}
+
+	var clusters []SshCluster
+	err = json.Unmarshal([]byte(textContent.Content[0].Text), &clusters)
+	if err != nil {
+		log.Error("sshClient: json.Unmarshal:", err)
+		return nil, err
+	}
+
+	return clusters, nil
+}
+
+// [Ab]using the LLM MCP client to call the SSH endpoint "tool" plugin since it implements already
+// a "standard" interface to call plugins and we don't want to implement a new one.
+func callSshEndpointPlugin(sshTarget string) (*SshEndpointData, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	defer func() {
+		cancel()
+		//if err := mcpClient.Close(); err != nil {
+		//	log.Error("sshClient: mcpClient.Close:", err)
+		//}
+	}()
 
 	var params = make(map[string]any)
 	params["target"] = sshTarget

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,10 +37,29 @@ var insecuretls bool
 var servicename string
 var lbToken string
 var frontendport int
+var mcpServer = pinger.MCPServerConfig{}
 
 var banner = `
 Pinger
 `
+
+// Define a custom JSON flag type
+type mcpConfigFlag struct {
+	Value *pinger.MCPServerConfig
+}
+
+// Set is called by urfave/cli when parsing the flag
+func (f *mcpConfigFlag) Set(value string) error {
+	return json.Unmarshal([]byte(value), f.Value)
+}
+
+func (f *mcpConfigFlag) String() string {
+	if f.Value == nil {
+		return "{}"
+	}
+	b, _ := json.Marshal(f.Value)
+	return string(b)
+}
 
 func main() {
 	fmt.Println(banner)
@@ -142,6 +162,13 @@ func main() {
 				Destination: &token,
 				Required:    false,
 			},
+			&cli.GenericFlag{
+				Name:     "mcpServerConfig",
+				Usage:    "MCP server configuration",
+				Value:    &mcpConfigFlag{Value: &mcpServer},
+				EnvVars:  []string{"MCP_SERVER_CONFIG"}, 
+				Required: false,
+			},
 		},
 		Name:   "pinger",
 		Usage:  "Container multi-utility",
@@ -228,7 +255,7 @@ func server(ctx *cli.Context) error {
 		log.Fatalf("failed to reconstruct filesystem: ", err)
 	}
 
-	err = pinger.NewPinger(port, enableUpload, enableXterm, token, lbapiendpoint, servicename, frontendport, lbToken)
+	err = pinger.NewPinger(port, enableUpload, enableXterm, token, lbapiendpoint, servicename, frontendport, lbToken, &mcpServer)
 	if err != nil {
 		log.Fatalf("failed to start pinger: ", err)
 	}

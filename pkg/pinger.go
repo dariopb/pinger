@@ -1,7 +1,9 @@
 package pinger
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"net"
@@ -41,6 +43,14 @@ type ResponseObj struct {
 	Message       string `json:"message,omitempty"`
 }
 
+// MCPServerConfig represents the configuration for a server in the config file
+type MCPServerConfig struct {
+	Type    string   `json:"type"`    // "stdio" or "sse" for Server-Sent Events
+	Command string   `json:"command"` // Command to execute
+	Args    []string `json:"args"`    // Command arguments
+	Env     []string `json:"env"`     // Environment variables
+}
+
 func (c *XtermObj) Evaluate() {
 
 	if c.Cmd == "" {
@@ -57,7 +67,9 @@ func (c *XtermObj) Evaluate() {
 	}
 }
 
-func NewPinger(port int, enableUpload bool, enableXterm bool, token string, lbEndpointAPI string, lbServicename string, lbFrontendPort int, lbToken string) error {
+func NewPinger(port int, enableUpload bool, enableXterm bool, token string, lbEndpointAPI string, lbServicename string, lbFrontendPort int, lbToken string,
+	mcpServerConfig *MCPServerConfig) error {
+	var err error
 	fmt.Printf("starting pinger on [%d]...\n", port)
 
 	addrs, err := net.InterfaceAddrs()
@@ -81,7 +93,7 @@ func NewPinger(port int, enableUpload bool, enableXterm bool, token string, lbEn
 
 		_, err = tunnel.NewMuxTunnelClient(lbEndpointAPI, td)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	} else {
 		log.Info("Not starting lb association")
@@ -147,6 +159,18 @@ func NewPinger(port int, enableUpload bool, enableXterm bool, token string, lbEn
 	if enableXterm {
 		e.File("/xterm", "web/index.html", pingerCtx.m)
 		e.GET("/xterm/ws", pingerCtx.xtermws)
+		e.GET("/sshtarget", pingerCtx.sshTargetHandler)
+	}
+
+	// Initialize the MCP server if configured
+	if mcpServerConfig != nil && mcpServerConfig.Type == "stdio" && mcpServerConfig.Command != "" {
+		log.Infof("Starting MCP server: %s", mcpServerConfig.Type)
+
+		mcpClient, err = initializePluginClients(*mcpServerConfig)
+		if err != nil {
+			log.Error("sshClient: initializePluginClients:", err)
+			return err
+		}
 	}
 
 	// Start server
@@ -199,7 +223,7 @@ func (p *PingerCtx) m(next echo.HandlerFunc) echo.HandlerFunc {
 
 func hello(c echo.Context) error {
 	hostname, _ := os.Hostname()
-	banner := fmt.Sprintf("Pinger: I'm alive on [%s] (%s on %s/%s). Supports: dns, proxy, vars, LB (LB_API_ENDPOINT/LB_TOKEN/LB_PORT/LB_SERVICE_NAME), xterm (linux/windows, ENABLE_XTERM), upload via POST (ENABLE_UPLOAD), dapr invoke.",
+	banner := fmt.Sprintf("Pinger: I'm alive on [%s] (%s on %s/%s). Supports: dns, proxy, vars, LB (LB_API_ENDPOINT/LB_TOKEN/LB_PORT/LB_SERVICE_NAME), xterm (linux/windows, ENABLE_XTERM), upload via POST (ENABLE_UPLOAD), dapr invoke, sshtarget (via stdin MCP servers).",
 		hostname, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 
 	banner += "<h3>Query strings</h3><snap>"
@@ -383,4 +407,65 @@ func (p *PingerCtx) uploadMultipart(c echo.Context) error {
 	}
 
 	return c.HTML(http.StatusOK, fmt.Sprintf("<p>Uploaded successfully %d files.</p>", len(files)))
+}
+
+// Child represents a child item of a folder
+type Child struct {
+	Value string `json:"value"`
+}
+
+// Folder represents a folder with children
+type Folder struct {
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Children []Child `json:"children"`
+}
+
+// TemplateData holds the data to be passed to the template
+type TemplateData struct {
+	Folders []Folder `json:"folders"`
+}
+
+func (p *PingerCtx) sshTargetHandler(c echo.Context) error {
+
+	clusters, err := GetAllSshNodes()
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Error getting SSH nodes: "+err.Error())
+	}
+
+	data := TemplateData{}
+
+	for _, cluster := range clusters {
+		folder := Folder{
+			ID:   cluster.Name,
+			Name: cluster.Name,
+		}
+
+		for _, node := range cluster.Nodes {
+			child := Child{
+				Value: node,
+			}
+			folder.Children = append(folder.Children, child)
+		}
+
+		// Add the folder to the list of folders
+		data.Folders = append(data.Folders, folder)
+	}
+
+	// Create a buffer to store the rendered HTML
+	var buf bytes.Buffer
+
+	// Parse the template
+	tmpl, err := template.ParseFiles("web/sshTarget.html")
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Error parsing template: "+err.Error())
+	}
+
+	// Execute the template and write to buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return c.String(http.StatusInternalServerError, "Error executing template: "+err.Error())
+	}
+
+	// Return HTML response
+	return c.HTML(http.StatusOK, buf.String())
 }

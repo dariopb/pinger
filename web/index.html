@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xterm Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@200&family=Ubuntu+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.css">
     <style>
         body, html {
@@ -147,8 +150,8 @@
                         <option value="'Courier New', monospace">Courier New</option>
                         <option value="'Cascadia Code', monospace">Cascadia Code</option>
                         <option value="monospace">Monospace</option>
-                        <option value="'Fira Code', monospace">Fira Code</option>
-                        <option value="'Source Code Pro', monospace">Source Code Pro</option>
+                        <option value="'Roboto Mono', monospace">Roboto Mono</option>
+                        <option value="'Ubuntu Mono', monospace">Ubuntu Mono</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -194,6 +197,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/addons/fit/fit.min.js"></script>
+    <script src="/web/xterm-webfont.js" ></script>
 
     <script>
         // Initialize Variables
@@ -245,7 +249,7 @@
             // Create terminal with default options
             term = new Terminal({
                 fontSize: 14,
-                fontFamily: "'Courier New', monospace",
+                fontFamily: "'Cascadia Code', monospace",
                 cursorStyle: 'block',
                 cursorBlink: true,
                 theme: {
@@ -257,6 +261,8 @@
                 rendererType: 'canvas',
                 allowTransparency: true
             });
+
+            term.loadAddon(new XtermWebfont());
 
             // Enable Ctrl+C and Ctrl+V for cut and paste
 /*            term.attachCustomKeyEventHandler((e) => {
@@ -299,6 +305,36 @@
                     e.stopPropagation();
         
                     return true; // Prevent browser's default behavior
+                }
+
+                if (e.type === 'keydown' && e.altKey && !e.ctrlKey) {
+                    const key = e.key;
+                    //alert("Key pressed: " + key);
+                    
+                    // Handle printable characters
+                    if (key && key.length === 1) {
+                        term.write(`\x1b${key}`);
+                        return false;
+                    }
+                    
+                    // Handle special keys with Alt
+                    if (key === 'ArrowUp') {
+                        term.write('\x1b[1;3A'); // Alt+Up arrow
+                        return false;
+                    } else if (key === 'ArrowDown') {
+                        term.write('\x1b[1;3B'); // Alt+Down arrow
+                        return false;
+                    } else if (key === 'ArrowRight') {
+                        //alert('Right');
+                        term.write('\x1b[1;3C'); // Alt+Right arrow
+                        return false;
+                    } else if (key === 'ArrowLeft') {
+                        term.write('\x1b[1;3D'); // Alt+Left arrow
+                        return false;
+                    }
+
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
 
                 return true; // Allow other key events

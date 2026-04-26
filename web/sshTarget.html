@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pinger:sshTarget</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        
+        a:hover {
+            background-color: #3367d6;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+            table-layout: fixed;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        th:first-child, td:first-child {
+            width: 30%;
+        }
+        
+        th:last-child, td:last-child {
+            width: 70%;
+        }
+        
+        .add-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 5px;
+            cursor: col-resize;
+            user-select: none;
+            height: 100%;
+            background-color: #ddd;
+        }
+        
+        .resizer:hover, .resizing {
+            background-color: #aaa;
+        }
+        
+        th {
+            position: relative;
+        }
+        
+        th {
+            background-color: #c2e6c9; /* Pastel green header */
+            position: sticky;
+            top: 0;
+        }
+        
+        .folder {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .indent-1 {
+            padding-left: 20px;
+        }
+        
+        .indent-2 {
+            padding-left: 40px;
+        }
+        
+        .toggle-icon {
+            display: inline-block;
+            width: 12px;
+            transition: transform 0.2s;
+        }
+        
+        .toggle-icon.open {
+            transform: rotate(90deg);
+        }
+        
+        .child-row {
+            display: none;
+        }
+        
+        .child-row.visible {
+            display: table-row;
+        }
+    </style>
+</head>
+<body>
+    <h2>SSH Targets</h2>
+    
+    <button class="add-button" id="expandAllButton">Expand All</button>
+
+    <table id="tree-table">
+        <thead>
+            <tr>
+                <th>Group<div class="resizer" id="resizer"></div></th>
+                <th>Host</th>
+            </tr>
+        </thead>
+
+        <template id="myTbodyTemplate">
+        <tbody id="template-content">
+            {{ if .Folders }}
+                {{ range $fol := .Folders }}
+                <tr data-folder-id="{{ $fol.ID }}">
+                    <td class="folder" onclick="toggleFolder('{{ $fol.ID }}')">
+                        <span class="toggle-icon">▶</span> {{ .Name }}
+                    </td>
+                    <td></td>
+                </tr>
+                {{ range $child := $fol.Children }}
+                <tr class="child-row {{ $fol.ID }}-child">
+                    <td class="indent-1"></td>
+                    <td><a class="dynamic-link" data-folder="{{ $fol.Name }}">{{ $child.Value }}</a></td>
+                </tr>
+                {{ end }}
+                {{ end }}
+            {{ end }}
+        </tbody>
+        </template>
+        <template id="myTbodySample">
+        <tbody id="sample-content">
+            <!-- Sample data -->
+            <tr data-folder-id="G1">
+                <td class="folder" onclick="toggleFolder('G1')">
+                    <span class="toggle-icon">▶</span> G1
+                </td>
+                <td></td>
+            </tr>
+            
+            <tr class="child-row G1-child">
+                <td class="indent-1"></td>
+                <td><a href="https://www.intel.com">host1</a></td>
+            </tr>
+            
+            <tr data-folder-id="G2">
+                <td class="folder" onclick="toggleFolder('G2')">
+                    <span class="toggle-icon">▶</span> G2
+                </td>
+                <td></td>
+            </tr>
+            
+            <tr class="child-row G2-child">
+                <td class="indent-1"></td>
+                <td><a class="dynamic-link">host2</a></td>
+            </tr>
+        </tbody>
+        </template>
+    <script>
+        const expandAllButton = document.getElementById('expandAllButton');
+
+        expandAllButton.addEventListener('click', () => {
+            // find all the ids of class "folder"
+            const folderRows = document.querySelectorAll('tr[data-folder-id]');
+            folderRows.forEach(row => {
+                const id = row.getAttribute('data-folder-id');
+                toggleFolder(id);
+            });
+        });
+
+        function toggleFolder(folderId) {
+            // Toggle the arrow icon
+            const folderRow = document.querySelector(`tr[data-folder-id="${folderId}"]`);
+            const toggleIcon = folderRow.querySelector('.toggle-icon');
+            toggleIcon.classList.toggle('open');
+            
+            // Toggle visibility of child rows
+            const childRows = document.querySelectorAll(`.${folderId}-child`);
+            childRows.forEach(row => {
+                row.classList.toggle('visible');
+                
+                // If this child row is also a folder and was not visible before,
+                // make sure its children are hidden when parent is closed
+                if (!row.classList.contains('visible') && row.hasAttribute('data-folder-id')) {
+                    const nestedFolderId = row.getAttribute('data-folder-id');
+                    const nestedChildren = document.querySelectorAll(`.${nestedFolderId}-child`);
+                    nestedChildren.forEach(nestedRow => {
+                        nestedRow.classList.remove('visible');
+                    });
+                    
+                    // Reset the toggle icon of nested folders when closing parent
+                    const nestedToggleIcon = row.querySelector('.toggle-icon');
+                    if (nestedToggleIcon) {
+                        nestedToggleIcon.classList.remove('open');
+                    }
+                }
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', function () {
+            // Check if the template directives are processed
+            const table = document.getElementById('tree-table');
+            const templateContent = document.getElementById('myTbodyTemplate');
+            const sampleContent = document.getElementById('myTbodySample');
+    
+            // If the template content is not processed (still contains "99999"), show sample data
+            if (templateContent.innerHTML.includes('99999')) {
+                const clone = sampleContent.content.cloneNode(true);
+                table.appendChild(clone);
+                table.removeChild(templateContent);
+            } else {
+                const clone = templateContent.content.cloneNode(true);
+                table.appendChild(clone);
+                table.removeChild(sampleContent);
+            }
+        });
+
+
+        // Column resizing functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const resizer = document.getElementById('resizer');
+            const table = document.getElementById('tree-table');
+            let isResizing = false;
+            let startX, startWidth;
+            
+            resizer.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                startX = e.pageX;
+                
+                // Get the current width of the Name column
+                const nameColumn = table.querySelector('th:first-child');
+                startWidth = nameColumn.offsetWidth;
+                
+                // Add resizing class for visual feedback
+                resizer.classList.add('resizing');
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
+                
+                // Calculate the new width based on mouse movement
+                const nameColumn = table.querySelector('th:first-child');
+                const valueColumn = table.querySelector('th:last-child');
+                const tableWidth = table.offsetWidth;
+                
+                // Calculate new width of first column
+                const widthChange = e.pageX - startX;
+                const newWidth = startWidth + widthChange;
+                
+                // Ensure reasonable min/max constraints (10-90%)
+                if (newWidth / tableWidth > 0.1 && newWidth / tableWidth < 0.9) {
+                    // Set new widths as percentages
+                    const newWidthPercent = (newWidth / tableWidth * 100).toFixed(2) + '%';
+                    const remainingWidthPercent = ((tableWidth - newWidth) / tableWidth * 100).toFixed(2) + '%';
+                    
+                    // Apply new widths to both columns
+                    nameColumn.style.width = newWidthPercent;
+                    valueColumn.style.width = remainingWidthPercent;
+                    
+                    // Apply to all cells in those columns
+                    const firstColCells = table.querySelectorAll('td:first-child');
+                    const secondColCells = table.querySelectorAll('td:last-child');
+                    
+                    firstColCells.forEach(cell => {
+                        cell.style.width = newWidthPercent;
+                    });
+                    
+                    secondColCells.forEach(cell => {
+                        cell.style.width = remainingWidthPercent;
+                    });
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isResizing) {
+                    isResizing = false;
+                    resizer.classList.remove('resizing');
+                }
+            });
+
+            // Get all dynamic links
+            const dynamicLinks = document.querySelectorAll('.dynamic-link');
+            
+            // Add click event handler to all dynamic links
+            dynamicLinks.forEach(link => {
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    
+                    // Get the link text
+                    const linkText = this.textContent;
+
+                    // Create and navigate to the new URL (loc.searc already have the ?)
+                    const newUrl = `/xterm${window.location.search}&sshTarget=${linkText}@${this.dataset.folder}`;
+                    window.location.href = newUrl;
+                });
+            });
+        });
+    </script>
+</body>
+</html>
